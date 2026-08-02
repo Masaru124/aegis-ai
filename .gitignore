@@ -1,0 +1,30 @@
+# Environment files
+.env
+.env*.local
+
+# Python / FastAPI
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+*.db
+venv/
+env/
+
+# Node.js / Next.js
+node_modules/
+.next/
+out/
+build/
+
+# System & IDE files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs
+*.log
+logs/

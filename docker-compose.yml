@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=sqlite+aiosqlite:///./aegis_ai.db
+      - SECRET_KEY=super_secret_aegis_ai_key_change_in_production_32bytes!
+      - DEFAULT_LLM_PROVIDER=openai
+    volumes:
+      - ./backend/aegis_ai.db:/app/aegis_ai.db
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/docs"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  web:
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://backend:8000/api/v1
+    depends_on:
+      - backend
