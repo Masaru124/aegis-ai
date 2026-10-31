@@ -1,42 +1,90 @@
 "use client";
 
-import React, { useState } from "react";
-import { Send, Bot, User, ThumbsUp, ThumbsDown, Sparkles, Brain, CheckCircle2 } from "lucide-react";
+import React, { useState, useRef, useEffect } from "react";
+import { 
+  Send, 
+  Terminal, 
+  Sparkles, 
+  Zap, 
+  Brain, 
+  CheckCircle2, 
+  ArrowUpRight, 
+  ThumbsUp, 
+  ThumbsDown,
+  ChevronDown,
+  Layers,
+  CornerDownLeft,
+  X
+} from "lucide-react";
 import { fetchWithAuth } from "@/lib/api";
+import { ModelType } from "@/app/page";
+import { FormattedMessage } from "./FormattedMessage";
 
 interface ChatMessage {
   id?: string;
   role: "user" | "assistant";
   content: string;
+  modelUsed?: string;
   used_memories?: string[];
+  timestamp?: string;
 }
 
-export function ChatInterface() {
+interface ChatInterfaceProps {
+  selectedModel: ModelType;
+  onSelectModel: (model: ModelType) => void;
+}
+
+export function ChatInterface({ selectedModel, onSelectModel }: ChatInterfaceProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       role: "assistant",
-      content: "Hello! I am AegisAI, your adaptive assistant equipped with Decision Intelligence. How can I assist your goals today?",
+      content: "AegisAI neural core initialized. Context memory and Multi-Criteria Decision Analysis (MCDA) engines are active.\n\nToggle between **Gemini 2.0 Flash** and **xAI Grok-2** above, or dispatch any decision problem, task, or research query.",
+      modelUsed: "gemini",
+      timestamp: "00:00:01",
     },
   ]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [feedbackFeedback, setFeedbackFeedback] = useState<string | null>(null);
+  const [feedbackSuccess, setFeedbackSuccess] = useState<string | null>(null);
+  
+  // Inline feedback modal / drawer state
+  const [activeFeedbackMsgId, setActiveFeedbackMsgId] = useState<string | null>(null);
+  const [feedbackRating, setFeedbackRating] = useState<number>(5);
+  const [feedbackCorrection, setFeedbackCorrection] = useState("");
+  const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
 
-  const handleSend = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!input.trim() || isLoading) return;
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
-    const userText = input;
-    setInput("");
-    setMessages((prev) => [...prev, { role: "user", content: userText }]);
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, isLoading]);
+
+  const handleSend = async (e?: React.FormEvent, presetText?: string) => {
+    if (e) e.preventDefault();
+    const textToSend = presetText || input;
+    if (!textToSend.trim() || isLoading) return;
+
+    if (!presetText) setInput("");
+    
+    const now = new Date();
+    const timeString = now.toTimeString().split(" ")[0];
+
+    setMessages((prev) => [
+      ...prev,
+      {
+        role: "user",
+        content: textToSend,
+        timestamp: timeString,
+      },
+    ]);
     setIsLoading(true);
 
     try {
       const data = await fetchWithAuth("/chat/chat", {
         method: "POST",
         body: JSON.stringify({
-          message: userText,
-          provider: "gemini",
+          message: textToSend,
+          provider: selectedModel,
           enable_memory: true,
         }),
       });
@@ -47,7 +95,9 @@ export function ChatInterface() {
           id: data.message.id,
           role: "assistant",
           content: data.message.content,
+          modelUsed: selectedModel,
           used_memories: data.used_memories,
+          timestamp: new Date().toTimeString().split(" ")[0],
         },
       ]);
     } catch (err: any) {
@@ -55,7 +105,9 @@ export function ChatInterface() {
         ...prev,
         {
           role: "assistant",
-          content: `Notice: Operating in local autonomous mode. (${err.message})`,
+          content: `Notice: System fallback autonomous response generated. (${err.message})`,
+          modelUsed: selectedModel,
+          timestamp: new Date().toTimeString().split(" ")[0],
         },
       ]);
     } finally {
@@ -63,110 +115,205 @@ export function ChatInterface() {
     }
   };
 
-  const handleSelfLearningFeedback = async (messageId: string, rating: number) => {
-    const correction = prompt("Teach AegisAI: What preference or correction should be remembered for future responses?");
-    if (!correction) return;
+  const submitFeedback = async () => {
+    if (!activeFeedbackMsgId || !feedbackCorrection.trim()) return;
+    setIsSubmittingFeedback(true);
 
     try {
       await fetchWithAuth("/memory/feedback", {
         method: "POST",
         body: JSON.stringify({
-          message_id: messageId,
-          rating,
-          correction,
+          message_id: activeFeedbackMsgId,
+          rating: feedbackRating,
+          correction: feedbackCorrection,
           approve_as_memory: true,
         }),
       });
-      setFeedbackFeedback("Feedback approved! AegisAI long-term memory updated.");
-      setTimeout(() => setFeedbackFeedback(null), 4000);
-    } catch (err) {
-      console.error("Feedback submission error", err);
+      setFeedbackSuccess("User-approved memory updated in vector store!");
+      setActiveFeedbackMsgId(null);
+      setFeedbackCorrection("");
+      setTimeout(() => setFeedbackSuccess(null), 4000);
+    } catch (err: any) {
+      alert(`Feedback submission failed: ${err.message}`);
+    } finally {
+      setIsSubmittingFeedback(false);
     }
   };
 
   return (
-    <div className="flex-1 flex flex-col h-screen bg-slate-950">
-      {/* Header */}
-      <header className="px-6 py-4 border-b border-slate-800 glass-panel flex items-center justify-between">
-        <div>
-          <h2 className="text-lg font-semibold text-slate-100 flex items-center gap-2">
-            Adaptive Agent Studio
-            <span className="text-xs bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded-full border border-blue-500/30">
-              LangGraph RAG
-            </span>
-          </h2>
-          <p className="text-xs text-slate-400">Context-Aware Realtime Orchestration</p>
+    <div className="flex-1 flex flex-col h-full bg-void overflow-hidden">
+      {/* Model Spec Bar */}
+      <div className="px-6 py-2.5 bg-surface-card border-b border-surface-border flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <span className="font-mono text-[10px] text-steel-500 uppercase tracking-widest">
+            ENGINE SELECTION:
+          </span>
+          
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => onSelectModel("gemini")}
+              className={`flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-mono border transition-all rounded-xs ${
+                selectedModel === "gemini"
+                  ? "bg-cyan-dim text-cyan border-cyan/50 font-bold"
+                  : "bg-surface text-steel-400 border-surface-border hover:border-steel-600"
+              }`}
+            >
+              <Sparkles className="w-3 h-3 text-cyan" />
+              <span>GEMINI 2.0 FLASH</span>
+              <span className="text-[9px] text-steel-500 hidden sm:inline">• 1M CTX</span>
+            </button>
+
+            <button
+              onClick={() => onSelectModel("grok")}
+              className={`flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-mono border transition-all rounded-xs ${
+                selectedModel === "grok"
+                  ? "bg-amber-dim text-amber border-amber/50 font-bold"
+                  : "bg-surface text-steel-400 border-surface-border hover:border-steel-600"
+              }`}
+            >
+              <Zap className="w-3 h-3 text-amber" />
+              <span>xAI GROK-2</span>
+              <span className="text-[9px] text-steel-500 hidden sm:inline">• DEEP LOGIC</span>
+            </button>
+          </div>
         </div>
-        {feedbackFeedback && (
-          <div className="flex items-center gap-2 text-xs bg-emerald-500/20 text-emerald-400 px-3 py-1.5 rounded-lg border border-emerald-500/30 animate-pulse">
-            <CheckCircle2 className="w-4 h-4" />
-            {feedbackFeedback}
+
+        {feedbackSuccess && (
+          <div className="flex items-center gap-2 text-[11px] font-mono text-cyan bg-cyan-dim px-3 py-1 border border-cyan/40 animate-pulse rounded-xs">
+            <CheckCircle2 className="w-3.5 h-3.5" />
+            <span>{feedbackSuccess}</span>
           </div>
         )}
-      </header>
+      </div>
 
-      {/* Messages Feed */}
+      {/* Quick Discovery Chips */}
+      <div className="px-6 py-2 border-b border-surface-border bg-surface/50 flex items-center gap-2 overflow-x-auto text-xs no-scrollbar">
+        <span className="font-mono text-[9px] text-steel-500 tracking-wider uppercase shrink-0">
+          DISPATCH SHORTCUTS:
+        </span>
+        <button
+          onClick={() => handleSend(undefined, "I have two job offers: Option A pays $140k with 3 days in office, while Option B pays $120k with 100% remote work. How should I evaluate this decision?")}
+          className="shrink-0 px-2.5 py-1 bg-surface-card hover:bg-surface-raised border border-surface-border hover:border-cyan/40 text-steel-300 text-[11px] font-mono flex items-center gap-1.5 transition-colors rounded-xs"
+        >
+          <ArrowUpRight className="w-3 h-3 text-cyan" />
+          <span>Job Offer MCDA Matrix</span>
+        </button>
+
+        <button
+          onClick={() => handleSend(undefined, "Create task: Review Q3 Decision Strategy Matrix with urgent priority")}
+          className="shrink-0 px-2.5 py-1 bg-surface-card hover:bg-surface-raised border border-surface-border hover:border-amber/40 text-steel-300 text-[11px] font-mono flex items-center gap-1.5 transition-colors rounded-xs"
+        >
+          <ArrowUpRight className="w-3 h-3 text-amber" />
+          <span>Dispatch Urgent Task</span>
+        </button>
+
+        <button
+          onClick={() => handleSend(undefined, "Please remember that I prefer concise, mathematically rigorous decision analysis without conversational filler.")}
+          className="shrink-0 px-2.5 py-1 bg-surface-card hover:bg-surface-raised border border-surface-border hover:border-steel-500 text-steel-300 text-[11px] font-mono flex items-center gap-1.5 transition-colors rounded-xs"
+        >
+          <ArrowUpRight className="w-3 h-3 text-steel-400" />
+          <span>Ingest Preference Memory</span>
+        </button>
+      </div>
+
+      {/* Messages Stream */}
       <div className="flex-1 overflow-y-auto p-6 space-y-6">
         {messages.map((msg, idx) => (
           <div
             key={idx}
-            className={`flex gap-4 max-w-4xl ${msg.role === "user" ? "ml-auto flex-row-reverse" : ""}`}
+            className={`flex flex-col max-w-4xl ${msg.role === "user" ? "ml-auto items-end" : "items-start"}`}
           >
-            <div
-              className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
-                msg.role === "user"
-                  ? "bg-blue-600 text-white"
-                  : "bg-gradient-to-tr from-purple-600 to-blue-600 text-white"
-              }`}
-            >
-              {msg.role === "user" ? <User className="w-5 h-5" /> : <Bot className="w-5 h-5" />}
+            {/* Message Origin Telemetry */}
+            <div className="flex items-center gap-2 mb-1.5 px-1 font-mono text-[10px] text-steel-500">
+              {msg.role === "user" ? (
+                <>
+                  <span className="text-slate-400 font-bold">[OPERATOR // DISPATCH]</span>
+                  <span>{msg.timestamp}</span>
+                </>
+              ) : (
+                <>
+                  <span className={`font-bold flex items-center gap-1.5 ${msg.modelUsed === "grok" ? "text-amber" : "text-cyan"}`}>
+                    {msg.modelUsed === "grok" ? (
+                      <>
+                        <Zap className="w-3 h-3 text-amber" />
+                        [AEGIS // xAI GROK-2]
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-3 h-3 text-cyan" />
+                        [AEGIS // GEMINI 2.0]
+                      </>
+                    )}
+                  </span>
+                  <span>{msg.timestamp}</span>
+                </>
+              )}
             </div>
 
-            <div className="space-y-2 max-w-2xl">
-              <div
-                className={`p-4 rounded-2xl text-sm leading-relaxed ${
-                  msg.role === "user"
-                    ? "bg-blue-600 text-white rounded-tr-none"
-                    : "glass-card text-slate-200 border border-slate-800 rounded-tl-none"
-                }`}
-              >
-                <div className="whitespace-pre-wrap">{msg.content}</div>
+            {/* Message Body Card */}
+            <div
+              className={`p-5 rounded-xs border text-sm leading-relaxed transition-all max-w-3xl ${
+                msg.role === "user"
+                  ? "bg-surface-raised border-steel-700 text-slate-100 shadow-tactile"
+                  : "bg-surface-card border-surface-border text-slate-200 shadow-sm"
+              }`}
+            >
+              <FormattedMessage content={msg.content} isGrok={msg.modelUsed === "grok"} />
 
-                {/* Used Memory Indicators */}
-                {msg.used_memories && msg.used_memories.length > 0 && (
-                  <div className="mt-3 pt-3 border-t border-slate-700/50 flex flex-wrap items-center gap-1.5">
-                    <Brain className="w-3.5 h-3.5 text-purple-400" />
-                    <span className="text-[11px] text-purple-300 font-medium">Refined with Memory:</span>
+              {/* Memory Node Telemetry Readout */}
+              {msg.used_memories && msg.used_memories.length > 0 && (
+                <div className="mt-4 pt-3 border-t border-surface-border/60">
+                  <div className="flex items-center gap-1.5 mb-2 font-mono text-[10px] text-cyan">
+                    <Brain className="w-3 h-3 text-cyan" />
+                    <span className="tracking-widest uppercase font-bold">[MEMORY_VECTORS_ACTIVATED]</span>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
                     {msg.used_memories.map((mem, mIdx) => (
                       <span
                         key={mIdx}
-                        className="text-[10px] bg-purple-950/60 text-purple-200 px-2 py-0.5 rounded border border-purple-800/50 truncate max-w-xs"
+                        className="font-mono text-[10px] bg-void text-steel-300 px-2 py-1 border border-surface-border rounded-xs max-w-md truncate"
                       >
-                        {mem}
+                        • {mem}
                       </span>
                     ))}
                   </div>
-                )}
-              </div>
+                </div>
+              )}
 
-              {/* Feedback Actions for Self-Learning */}
+              {/* Self-Learning Action Bar */}
               {msg.role === "assistant" && idx > 0 && (
-                <div className="flex items-center gap-3 px-1">
-                  <span className="text-[11px] text-slate-500">Self-Learning Feedback:</span>
-                  <button
-                    onClick={() => handleSelfLearningFeedback(msg.id || "msg", 5)}
-                    className="p-1 text-slate-400 hover:text-emerald-400 transition-colors"
-                    title="Approve & Teach Assistant"
-                  >
-                    <ThumbsUp className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    onClick={() => handleSelfLearningFeedback(msg.id || "msg", 1)}
-                    className="p-1 text-slate-400 hover:text-rose-400 transition-colors"
-                    title="Provide Correction"
-                  >
-                    <ThumbsDown className="w-3.5 h-3.5" />
-                  </button>
+                <div className="mt-4 pt-3 border-t border-surface-border/60 flex items-center justify-between">
+                  <span className="font-mono text-[10px] text-steel-500 uppercase tracking-wider">
+                    FEEDBACK_LOOP:
+                  </span>
+                  
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => {
+                        setActiveFeedbackMsgId(msg.id || `msg-${idx}`);
+                        setFeedbackRating(5);
+                        setFeedbackCorrection("");
+                      }}
+                      className="px-2 py-1 bg-surface hover:bg-surface-raised text-[10px] font-mono text-cyan border border-surface-border hover:border-cyan/40 transition-colors rounded-xs flex items-center gap-1"
+                      title="Approve and ingest preference to vector memory"
+                    >
+                      <ThumbsUp className="w-3 h-3" />
+                      <span>TEACH_PREFERENCE</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setActiveFeedbackMsgId(msg.id || `msg-${idx}`);
+                        setFeedbackRating(1);
+                        setFeedbackCorrection("");
+                      }}
+                      className="px-2 py-1 bg-surface hover:bg-surface-raised text-[10px] font-mono text-crimson border border-surface-border hover:border-crimson/40 transition-colors rounded-xs flex items-center gap-1"
+                      title="Provide correction or rule"
+                    >
+                      <ThumbsDown className="w-3 h-3" />
+                      <span>LOG_CORRECTION</span>
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
@@ -174,33 +321,88 @@ export function ChatInterface() {
         ))}
 
         {isLoading && (
-          <div className="flex gap-4 max-w-4xl">
-            <div className="w-9 h-9 rounded-xl bg-purple-600/30 flex items-center justify-center animate-pulse">
-              <Sparkles className="w-5 h-5 text-purple-400" />
+          <div className="flex flex-col items-start max-w-4xl">
+            <div className="flex items-center gap-2 mb-1.5 px-1 font-mono text-[10px] text-steel-500">
+              <span className={`font-bold flex items-center gap-1.5 ${selectedModel === "grok" ? "text-amber" : "text-cyan"}`}>
+                [AEGIS // {selectedModel === "grok" ? "xAI GROK-2" : "GEMINI 2.0"}]
+              </span>
+              <span>COMPUTING_TELEMETRY</span>
             </div>
-            <div className="glass-card p-4 rounded-2xl text-xs text-slate-400 flex items-center gap-2">
-              AegisAI analyzing context, memories & evaluating decision matrix...
+            <div className="bg-surface-card p-4 border border-surface-border rounded-xs flex items-center gap-3">
+              <div className={`w-2 h-2 rounded-full animate-ping ${selectedModel === "grok" ? "bg-amber" : "bg-cyan"}`} />
+              <span className="font-mono text-xs text-steel-400">
+                Processing multi-criteria matrix through {selectedModel === "grok" ? "Grok First-Principles" : "Gemini Multimodal Core"}...
+              </span>
             </div>
           </div>
         )}
+
+        <div ref={messagesEndRef} />
       </div>
 
-      {/* Input bar */}
-      <form onSubmit={handleSend} className="p-4 border-t border-slate-800 glass-panel">
-        <div className="max-w-4xl mx-auto flex items-center gap-3 bg-slate-900/80 p-2 rounded-2xl border border-slate-800 focus-within:border-blue-500/50 transition-all">
+      {/* Inline Feedback Drawer (No ugly window.prompt!) */}
+      {activeFeedbackMsgId && (
+        <div className="px-6 py-4 bg-surface-raised border-t border-surface-border flex flex-col gap-3 animate-in fade-in slide-in-from-bottom duration-200">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Brain className="w-4 h-4 text-cyan" />
+              <span className="font-mono text-xs font-bold text-slate-200">
+                [USER-APPROVED SELF-LEARNING] Ingest Preference to Long-Term Memory
+              </span>
+            </div>
+            <button
+              onClick={() => setActiveFeedbackMsgId(null)}
+              className="text-steel-400 hover:text-slate-100 p-1"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          <div className="flex gap-3">
+            <input
+              type="text"
+              value={feedbackCorrection}
+              onChange={(e) => setFeedbackCorrection(e.target.value)}
+              placeholder="e.g. In decision queries, prioritize remote flexibility and calculate effective hourly wage..."
+              className="flex-1 bg-void border border-surface-border rounded-xs px-3 py-2 text-xs font-mono text-slate-100 focus:outline-none focus:border-cyan"
+            />
+            <button
+              onClick={submitFeedback}
+              disabled={isSubmittingFeedback || !feedbackCorrection.trim()}
+              className="px-4 py-2 bg-cyan text-black font-mono text-xs font-bold hover:bg-cyan/90 disabled:opacity-50 transition-all rounded-xs"
+            >
+              {isSubmittingFeedback ? "INGESTING..." : "COMMIT TO MEMORY"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Command Input Deck */}
+      <form onSubmit={(e) => handleSend(e)} className="p-4 bg-surface border-t border-surface-border">
+        <div className="max-w-4xl mx-auto flex items-center gap-3 bg-surface-card p-2 border border-surface-border focus-within:border-cyan/50 transition-all rounded-xs">
+          <span className="font-mono text-cyan text-sm pl-2 select-none font-bold">›_</span>
           <input
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Ask AegisAI anything or submit options to evaluate..."
-            className="flex-1 bg-transparent px-3 text-sm text-slate-100 focus:outline-none placeholder:text-slate-500"
+            placeholder={`Instruct AegisAI (Dispatching via ${selectedModel === "grok" ? "xAI Grok-2" : "Google Gemini 2.0"})...`}
+            className="flex-1 bg-transparent px-2 text-xs font-mono text-slate-100 focus:outline-none placeholder:text-steel-500"
           />
+
+          <div className="hidden sm:flex items-center gap-1 text-[10px] font-mono text-steel-500 px-2">
+            <span>[ENTER ↵]</span>
+          </div>
+
           <button
             type="submit"
             disabled={isLoading || !input.trim()}
-            className="w-10 h-10 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white flex items-center justify-center transition-colors shrink-0 shadow-lg shadow-blue-600/20"
+            className={`w-9 h-9 rounded-xs flex items-center justify-center transition-all shrink-0 font-bold ${
+              selectedModel === "grok"
+                ? "bg-amber text-black hover:bg-amber/90 disabled:opacity-40"
+                : "bg-cyan text-black hover:bg-cyan/90 disabled:opacity-40"
+            }`}
           >
-            <Send className="w-4 h-4" />
+            <Send className="w-3.5 h-3.5" />
           </button>
         </div>
       </form>

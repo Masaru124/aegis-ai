@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { Shield, Lock, Mail, User as UserIcon, ArrowRight, Sparkles } from "lucide-react";
+import { Shield, Lock, Mail, User as UserIcon, ArrowRight, Activity, Terminal } from "lucide-react";
 import { setAuthToken } from "@/lib/api";
 
 interface AuthViewProps {
@@ -23,7 +23,6 @@ export function AuthView({ onLoginSuccess }: AuthViewProps) {
 
     try {
       if (isLogin) {
-        // OAuth2 Password form format for FastAPI /auth/login
         const body = new URLSearchParams();
         body.append("username", email);
         body.append("password", password);
@@ -36,20 +35,18 @@ export function AuthView({ onLoginSuccess }: AuthViewProps) {
 
         if (!res.ok) {
           const errData = await res.json().catch(() => ({ detail: "Login failed" }));
-          throw new Error(errData.detail || "Invalid credentials");
+          throw new Error(errData.detail || "Authentication handshake rejected.");
         }
 
         const tokenData = await res.json();
         setAuthToken(tokenData.access_token);
 
-        // Fetch User Info
         const meRes = await fetch("http://127.0.0.1:8000/api/v1/auth/me", {
           headers: { Authorization: `Bearer ${tokenData.access_token}` },
         });
         const userData = await meRes.json();
         onLoginSuccess(userData);
       } else {
-        // Register flow
         const regRes = await fetch("http://127.0.0.1:8000/api/v1/auth/register", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -58,10 +55,9 @@ export function AuthView({ onLoginSuccess }: AuthViewProps) {
 
         if (!regRes.ok) {
           const errData = await regRes.json().catch(() => ({ detail: "Registration failed" }));
-          throw new Error(errData.detail || "Registration error");
+          throw new Error(errData.detail || "Operator profile generation failed.");
         }
 
-        // Auto-login after registration
         const body = new URLSearchParams();
         body.append("username", email);
         body.append("password", password);
@@ -89,92 +85,130 @@ export function AuthView({ onLoginSuccess }: AuthViewProps) {
   };
 
   return (
-    <div className="min-h-screen w-screen bg-slate-950 flex items-center justify-center p-4 relative overflow-hidden">
-      {/* Background ambient lighting */}
-      <div className="absolute -top-40 -left-40 w-96 h-96 bg-blue-600/20 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-purple-600/20 rounded-full blur-3xl pointer-events-none" />
+    <div className="min-h-screen w-screen bg-void flex items-center justify-center p-6 relative overflow-hidden select-none">
+      {/* Background Reticle Grid */}
+      <div className="absolute inset-0 bg-[radial-gradient(rgba(255,255,255,0.06)_1px,transparent_1px)] bg-[size:32px_32px] pointer-events-none" />
 
-      <div className="w-full max-w-md glass-panel p-8 rounded-3xl border border-slate-800 shadow-2xl relative z-10 space-y-6">
-        {/* Header Branding */}
-        <div className="text-center space-y-2">
-          <div className="w-14 h-14 mx-auto rounded-2xl bg-gradient-to-tr from-blue-600 to-purple-600 flex items-center justify-center shadow-lg shadow-blue-500/25">
-            <Shield className="w-8 h-8 text-white" />
+      <div className="w-full max-w-md panel-frame p-8 rounded-xs relative z-10 space-y-6 shadow-2xl">
+        {/* Monolith Header */}
+        <div className="border-b border-surface-border pb-5 space-y-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 bg-surface-card border border-cyan/40 flex items-center justify-center">
+                <span className="font-mono text-cyan text-xs font-bold">Æ</span>
+              </div>
+              <div>
+                <h1 className="font-display font-bold text-base text-slate-100 tracking-wider">
+                  AEGIS // GATE
+                </h1>
+                <p className="font-mono text-[9px] text-steel-400 uppercase tracking-widest">
+                  DECISION_INTELLIGENCE_SYSTEM
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1.5 font-mono text-[9px] text-cyan bg-cyan-dim px-2 py-0.5 border border-cyan/30">
+              <span className="w-1.5 h-1.5 rounded-full bg-cyan animate-pulse-subtle" />
+              <span>SEC_CLEARANCE</span>
+            </div>
           </div>
-          <h1 className="text-2xl font-bold gradient-text">AegisAI Studio</h1>
-          <p className="text-xs text-slate-400">
-            Self-Learning Adaptive AI Assistant & Decision Intelligence
-          </p>
         </div>
 
         {/* Tab Toggle */}
-        <div className="flex bg-slate-900/80 p-1 rounded-xl border border-slate-800">
+        <div className="grid grid-cols-2 bg-surface p-1 border border-surface-border rounded-xs">
           <button
             onClick={() => { setIsLogin(true); setError(null); }}
-            className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-all ${
+            className={`py-2 font-mono text-xs font-semibold tracking-wider transition-all rounded-xs ${
               isLogin
-                ? "bg-blue-600 text-white shadow-md shadow-blue-600/20"
-                : "text-slate-400 hover:text-slate-200"
+                ? "bg-surface-raised text-cyan border border-cyan/30 shadow-sm"
+                : "text-steel-400 hover:text-slate-200"
             }`}
           >
-            Sign In
+            [01 // SIGN_IN]
           </button>
           <button
             onClick={() => { setIsLogin(false); setError(null); }}
-            className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-all ${
+            className={`py-2 font-mono text-xs font-semibold tracking-wider transition-all rounded-xs ${
               !isLogin
-                ? "bg-purple-600 text-white shadow-md shadow-purple-600/20"
-                : "text-slate-400 hover:text-slate-200"
+                ? "bg-surface-raised text-cyan border border-cyan/30 shadow-sm"
+                : "text-steel-400 hover:text-slate-200"
             }`}
           >
-            Register
+            [02 // REGISTER]
+          </button>
+        </div>
+
+        {/* Demo Credentials Quick-Fill Banner */}
+        <div className="flex items-center justify-between p-2 bg-surface-raised border border-cyan/20 rounded-xs text-[10px] font-mono">
+          <div className="flex items-center gap-2 overflow-hidden">
+            <span className="text-cyan font-bold">DEMO:</span>
+            <span className="text-steel-300 truncate">operator@aegis.ai</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setIsLogin(true);
+              setEmail("operator@aegis.ai");
+              setPassword("aegispassword123");
+              setError(null);
+            }}
+            className="px-2 py-0.5 bg-cyan text-black font-bold uppercase tracking-wider hover:bg-cyan/90 transition-colors shrink-0"
+          >
+            Autofill
           </button>
         </div>
 
         {/* Error Alert */}
         {error && (
-          <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-xs text-rose-400 text-center">
+          <div className="p-3 bg-crimson-dim border border-crimson/40 font-mono text-xs text-crimson text-center rounded-xs">
             {error}
           </div>
         )}
 
         {/* Form Inputs */}
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4 font-mono">
           {!isLogin && (
             <div>
-              <label className="text-xs text-slate-400 font-medium block mb-1">Full Name</label>
+              <label className="text-[10px] text-steel-400 uppercase tracking-wider block mb-1">
+                Operator Identity
+              </label>
               <div className="relative">
-                <UserIcon className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
+                <UserIcon className="w-3.5 h-3.5 text-steel-500 absolute left-3 top-3" />
                 <input
                   type="text"
                   required
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="Alex Mercer"
-                  className="w-full bg-slate-900/90 border border-slate-800 rounded-xl pl-9 pr-4 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-purple-500 transition-colors"
+                  placeholder="e.g. Commander Mercer"
+                  className="w-full bg-void border border-surface-border rounded-xs pl-9 pr-4 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-cyan transition-colors"
                 />
               </div>
             </div>
           )}
 
           <div>
-            <label className="text-xs text-slate-400 font-medium block mb-1">Email Address</label>
+            <label className="text-[10px] text-steel-400 uppercase tracking-wider block mb-1">
+              Operator Email
+            </label>
             <div className="relative">
-              <Mail className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
+              <Mail className="w-3.5 h-3.5 text-steel-500 absolute left-3 top-3" />
               <input
                 type="email"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="user@aegisai.io"
-                className="w-full bg-slate-900/90 border border-slate-800 rounded-xl pl-9 pr-4 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-blue-500 transition-colors"
+                placeholder="operator@aegis.ai"
+                className="w-full bg-void border border-surface-border rounded-xs pl-9 pr-4 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-cyan transition-colors"
               />
             </div>
           </div>
 
           <div>
-            <label className="text-xs text-slate-400 font-medium block mb-1">Password</label>
+            <label className="text-[10px] text-steel-400 uppercase tracking-wider block mb-1">
+              Passkey
+            </label>
             <div className="relative">
-              <Lock className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
+              <Lock className="w-3.5 h-3.5 text-steel-500 absolute left-3 top-3" />
               <input
                 type="password"
                 required
@@ -182,7 +216,7 @@ export function AuthView({ onLoginSuccess }: AuthViewProps) {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••••••"
-                className="w-full bg-slate-900/90 border border-slate-800 rounded-xl pl-9 pr-4 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-blue-500 transition-colors"
+                className="w-full bg-void border border-surface-border rounded-xs pl-9 pr-4 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-cyan transition-colors"
               />
             </div>
           </div>
@@ -190,26 +224,24 @@ export function AuthView({ onLoginSuccess }: AuthViewProps) {
           <button
             type="submit"
             disabled={loading}
-            className={`w-full py-3 text-white font-semibold text-xs rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 ${
-              isLogin
-                ? "bg-blue-600 hover:bg-blue-500 shadow-blue-600/25"
-                : "bg-purple-600 hover:bg-purple-500 shadow-purple-600/25"
-            }`}
+            className="w-full py-3 bg-cyan text-black hover:bg-cyan/90 font-mono font-bold text-xs uppercase tracking-wider rounded-xs transition-all flex items-center justify-center gap-2 shadow-cyan-glow disabled:opacity-50"
           >
             {loading ? (
-              <Sparkles className="w-4 h-4 animate-spin" />
+              <Activity className="w-3.5 h-3.5 animate-spin" />
             ) : (
               <>
-                {isLogin ? "Authenticate to AegisAI" : "Create AegisAI Account"}
-                <ArrowRight className="w-4 h-4" />
+                <span>{isLogin ? "AUTHORIZE_SESSION" : "INITIALIZE_PROFILE"}</span>
+                <ArrowRight className="w-3.5 h-3.5" />
               </>
             )}
           </button>
         </form>
 
-        <p className="text-[11px] text-center text-slate-500 leading-relaxed">
-          Protected by AES memory encryption and JWT role-based access control (RBAC).
-        </p>
+        <div className="pt-2 border-t border-surface-border/60 text-center">
+          <p className="font-mono text-[9px] text-steel-500 uppercase tracking-widest">
+            AES-256 MEMORY ENCRYPTION // JWT ROLE-BASED ACCESS CONTROL
+          </p>
+        </div>
       </div>
     </div>
   );

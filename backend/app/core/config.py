@@ -13,10 +13,13 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "sqlite+aiosqlite:///./aegis_ai.db"
 
     # LLM Settings
-    DEFAULT_LLM_PROVIDER: str = "openai"  # openai, anthropic, gemini, ollama, mock
+    DEFAULT_LLM_PROVIDER: str = "gemini"  # gemini, grok, openai, anthropic, ollama, mock
     OPENAI_API_KEY: Optional[str] = None
     ANTHROPIC_API_KEY: Optional[str] = None
     GEMINI_API_KEY: Optional[str] = None
+    GROK_API_KEY: Optional[str] = None
+    XAI_API_KEY: Optional[str] = None
+    GROK_BASE_URL: str = "https://api.x.ai/v1"
     OLLAMA_BASE_URL: str = "http://localhost:11434"
 
     # CORS
