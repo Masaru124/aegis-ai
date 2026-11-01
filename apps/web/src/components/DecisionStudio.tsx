@@ -133,7 +133,7 @@ export function DecisionStudio({ selectedModel }: DecisionStudioProps) {
             </span>
             <span className="text-steel-600 font-mono text-xs">•</span>
             <span className="font-mono text-[10px] text-steel-400">
-              DISPATCHING VIA {selectedModel === "grok" ? "xAI GROK-2" : "GEMINI 2.0"}
+              DISPATCHING VIA {selectedModel === "groq" || selectedModel === "grok" ? "GROQ LPU (120B)" : "GEMINI 2.0"}
             </span>
           </div>
           <h2 className="text-2xl font-bold font-display text-slate-100 tracking-tight">
@@ -326,7 +326,7 @@ export function DecisionStudio({ selectedModel }: DecisionStudioProps) {
                       ★ TOP_RANKED_RECOMMENDATION
                     </span>
                     <span className="font-mono text-[10px] text-steel-400">
-                      SOLVED VIA {selectedModel === "grok" ? "GROK-2" : "GEMINI 2.0"}
+                      SOLVED VIA {selectedModel === "groq" || selectedModel === "grok" ? "GROQ LPU" : "GEMINI 2.0"}
                     </span>
                   </div>
 

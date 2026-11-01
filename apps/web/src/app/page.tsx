@@ -11,20 +11,22 @@ import { AuthView } from "@/components/AuthView";
 import { getAuthToken, fetchWithAuth, removeAuthToken } from "@/lib/api";
 import { Shield, Sparkles, Zap, Activity } from "lucide-react";
 
-export type ModelType = "gemini" | "grok";
+export type ModelType = "groq" | "gemini" | "grok";
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState("chat");
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [selectedModel, setSelectedModel] = useState<ModelType>("gemini");
+  const [selectedModel, setSelectedModel] = useState<ModelType>("groq");
 
   useEffect(() => {
     // Restore preferred model from localStorage
     if (typeof window !== "undefined") {
       const savedModel = localStorage.getItem("aegis_model") as ModelType;
-      if (savedModel === "gemini" || savedModel === "grok") {
+      if (savedModel === "groq" || savedModel === "gemini" || savedModel === "grok") {
         setSelectedModel(savedModel);
+      } else {
+        setSelectedModel("groq");
       }
     }
 
@@ -116,6 +118,19 @@ export default function Home() {
           <div className="flex items-center gap-3">
             <div className="flex items-center bg-surface-card p-1 border border-surface-border rounded-sm">
               <button
+                onClick={() => handleModelChange("groq")}
+                className={`flex items-center gap-2 px-3 py-1.5 text-xs font-mono tracking-wider transition-all rounded-sm ${
+                  selectedModel === "groq" || selectedModel === "grok"
+                    ? "bg-amber-dim text-amber border border-amber/40 font-bold shadow-sm"
+                    : "text-steel-400 hover:text-slate-200"
+                }`}
+              >
+                <Zap className="w-3.5 h-3.5 text-amber" />
+                <span>GROQ LPU</span>
+                <span className="text-[9px] text-slate-500 font-normal hidden lg:inline">120B OPEN</span>
+              </button>
+              
+              <button
                 onClick={() => handleModelChange("gemini")}
                 className={`flex items-center gap-2 px-3 py-1.5 text-xs font-mono tracking-wider transition-all rounded-sm ${
                   selectedModel === "gemini"
@@ -126,19 +141,6 @@ export default function Home() {
                 <Sparkles className="w-3.5 h-3.5 text-cyan" />
                 <span>GEMINI 2.0</span>
                 <span className="text-[9px] text-slate-500 font-normal hidden lg:inline">FLASH</span>
-              </button>
-              
-              <button
-                onClick={() => handleModelChange("grok")}
-                className={`flex items-center gap-2 px-3 py-1.5 text-xs font-mono tracking-wider transition-all rounded-sm ${
-                  selectedModel === "grok"
-                    ? "bg-amber-dim text-amber border border-amber/40 font-bold shadow-sm"
-                    : "text-steel-400 hover:text-slate-200"
-                }`}
-              >
-                <Zap className="w-3.5 h-3.5 text-amber" />
-                <span>xAI GROK-2</span>
-                <span className="text-[9px] text-slate-500 font-normal hidden lg:inline">VISION</span>
               </button>
             </div>
 

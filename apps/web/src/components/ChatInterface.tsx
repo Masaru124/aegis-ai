@@ -38,8 +38,8 @@ export function ChatInterface({ selectedModel, onSelectModel }: ChatInterfacePro
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       role: "assistant",
-      content: "AegisAI neural core initialized. Context memory and Multi-Criteria Decision Analysis (MCDA) engines are active.\n\nToggle between **Gemini 2.0 Flash** and **xAI Grok-2** above, or dispatch any decision problem, task, or research query.",
-      modelUsed: "gemini",
+      content: "AegisAI neural core initialized. Context memory and Multi-Criteria Decision Analysis (MCDA) engines are active.\n\nRunning on **Groq LPU (GPT-OSS-120B)** for sub-second objective reasoning, with **Gemini 2.0 Flash** available as secondary engine. Dispatch any decision problem, task, or research query.",
+      modelUsed: "groq",
       timestamp: "00:00:01",
     },
   ]);
@@ -151,6 +151,19 @@ export function ChatInterface({ selectedModel, onSelectModel }: ChatInterfacePro
           
           <div className="flex items-center gap-2">
             <button
+              onClick={() => onSelectModel("groq")}
+              className={`flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-mono border transition-all rounded-xs ${
+                selectedModel === "groq" || selectedModel === "grok"
+                  ? "bg-amber-dim text-amber border-amber/50 font-bold"
+                  : "bg-surface text-steel-400 border-surface-border hover:border-steel-600"
+              }`}
+            >
+              <Zap className="w-3 h-3 text-amber" />
+              <span>GROQ LPU (120B)</span>
+              <span className="text-[9px] text-steel-500 hidden sm:inline">• SUB-SECOND</span>
+            </button>
+
+            <button
               onClick={() => onSelectModel("gemini")}
               className={`flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-mono border transition-all rounded-xs ${
                 selectedModel === "gemini"
@@ -161,19 +174,6 @@ export function ChatInterface({ selectedModel, onSelectModel }: ChatInterfacePro
               <Sparkles className="w-3 h-3 text-cyan" />
               <span>GEMINI 2.0 FLASH</span>
               <span className="text-[9px] text-steel-500 hidden sm:inline">• 1M CTX</span>
-            </button>
-
-            <button
-              onClick={() => onSelectModel("grok")}
-              className={`flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-mono border transition-all rounded-xs ${
-                selectedModel === "grok"
-                  ? "bg-amber-dim text-amber border-amber/50 font-bold"
-                  : "bg-surface text-steel-400 border-surface-border hover:border-steel-600"
-              }`}
-            >
-              <Zap className="w-3 h-3 text-amber" />
-              <span>xAI GROK-2</span>
-              <span className="text-[9px] text-steel-500 hidden sm:inline">• DEEP LOGIC</span>
             </button>
           </div>
         </div>
@@ -232,11 +232,11 @@ export function ChatInterface({ selectedModel, onSelectModel }: ChatInterfacePro
                 </>
               ) : (
                 <>
-                  <span className={`font-bold flex items-center gap-1.5 ${msg.modelUsed === "grok" ? "text-amber" : "text-cyan"}`}>
-                    {msg.modelUsed === "grok" ? (
+                  <span className={`font-bold flex items-center gap-1.5 ${msg.modelUsed === "groq" || msg.modelUsed === "grok" ? "text-amber" : "text-cyan"}`}>
+                    {msg.modelUsed === "groq" || msg.modelUsed === "grok" ? (
                       <>
                         <Zap className="w-3 h-3 text-amber" />
-                        [AEGIS // xAI GROK-2]
+                        [AEGIS // GROQ LPU]
                       </>
                     ) : (
                       <>
@@ -323,15 +323,16 @@ export function ChatInterface({ selectedModel, onSelectModel }: ChatInterfacePro
         {isLoading && (
           <div className="flex flex-col items-start max-w-4xl">
             <div className="flex items-center gap-2 mb-1.5 px-1 font-mono text-[10px] text-steel-500">
-              <span className={`font-bold flex items-center gap-1.5 ${selectedModel === "grok" ? "text-amber" : "text-cyan"}`}>
-                [AEGIS // {selectedModel === "grok" ? "xAI GROK-2" : "GEMINI 2.0"}]
+              <span className={`font-bold flex items-center gap-1.5 ${selectedModel === "groq" || selectedModel === "grok" ? "text-amber" : "text-cyan"}`}>
+                <Zap className="w-3 h-3" />
+                [AEGIS // {selectedModel === "groq" || selectedModel === "grok" ? "GROQ LPU" : "GEMINI 2.0"}]
               </span>
               <span>COMPUTING_TELEMETRY</span>
             </div>
             <div className="bg-surface-card p-4 border border-surface-border rounded-xs flex items-center gap-3">
-              <div className={`w-2 h-2 rounded-full animate-ping ${selectedModel === "grok" ? "bg-amber" : "bg-cyan"}`} />
+              <div className={`w-2 h-2 rounded-full animate-ping ${selectedModel === "groq" || selectedModel === "grok" ? "bg-amber" : "bg-cyan"}`} />
               <span className="font-mono text-xs text-steel-400">
-                Processing multi-criteria matrix through {selectedModel === "grok" ? "Grok First-Principles" : "Gemini Multimodal Core"}...
+                Processing multi-criteria matrix through {selectedModel === "groq" || selectedModel === "grok" ? "Groq LPU (GPT-OSS-120B)" : "Gemini Multimodal Core"}...
               </span>
             </div>
           </div>
@@ -385,7 +386,7 @@ export function ChatInterface({ selectedModel, onSelectModel }: ChatInterfacePro
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder={`Instruct AegisAI (Dispatching via ${selectedModel === "grok" ? "xAI Grok-2" : "Google Gemini 2.0"})...`}
+            placeholder={`Instruct AegisAI (Dispatching via ${selectedModel === "groq" || selectedModel === "grok" ? "Groq LPU (GPT-OSS-120B)" : "Google Gemini 2.0"})...`}
             className="flex-1 bg-transparent px-2 text-xs font-mono text-slate-100 focus:outline-none placeholder:text-steel-500"
           />
 
@@ -397,7 +398,7 @@ export function ChatInterface({ selectedModel, onSelectModel }: ChatInterfacePro
             type="submit"
             disabled={isLoading || !input.trim()}
             className={`w-9 h-9 rounded-xs flex items-center justify-center transition-all shrink-0 font-bold ${
-              selectedModel === "grok"
+              selectedModel === "groq" || selectedModel === "grok"
                 ? "bg-amber text-black hover:bg-amber/90 disabled:opacity-40"
                 : "bg-cyan text-black hover:bg-cyan/90 disabled:opacity-40"
             }`}

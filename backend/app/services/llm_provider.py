@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 class LLMProvider:
     """
     Unified Abstraction Layer for LLM models:
-    Supports OpenAI, Anthropic Claude, Google Gemini, Ollama, and fallback Mock provider.
+    Supports Groq LPU (GPT-OSS-120B/20B), Google Gemini, OpenAI, Anthropic Claude, xAI Grok, Ollama, and fallback Mock provider.
     """
 
     def __init__(self, provider_name: Optional[str] = None):
@@ -36,23 +36,105 @@ class LLMProvider:
         )
 
         try:
-            if self.provider_name in ["grok", "xai"]:
-                return await self._call_grok(augmented_prompt, sys_instruction, temperature, max_tokens)
+            # 1. Groq / Grok provider handling
+            if self.provider_name in ["groq", "grok", "xai"]:
+                groq_key = settings.GROQ_API_KEY or (settings.GROK_API_KEY if settings.GROK_API_KEY and settings.GROK_API_KEY.startswith("gsk_") else None)
+                if groq_key:
+                    return await self._call_groq(augmented_prompt, sys_instruction, temperature, max_tokens, api_key=groq_key)
+                elif settings.GROK_API_KEY and not settings.GROK_API_KEY.startswith("your_"):
+                    return await self._call_grok(augmented_prompt, sys_instruction, temperature, max_tokens)
+                else:
+                    return await self._call_mock_grok(augmented_prompt, sys_instruction)
+
+            # 2. OpenAI provider
             elif self.provider_name == "openai" and settings.OPENAI_API_KEY and settings.OPENAI_API_KEY != "your_openai_api_key_here":
                 return await self._call_openai(augmented_prompt, sys_instruction, temperature, max_tokens)
+
+            # 3. Anthropic provider
             elif self.provider_name == "anthropic" and settings.ANTHROPIC_API_KEY and settings.ANTHROPIC_API_KEY != "your_anthropic_api_key_here":
                 return await self._call_anthropic(augmented_prompt, sys_instruction, temperature, max_tokens)
+
+            # 4. Gemini provider (with graceful fallback to Groq if quota exhausted)
             elif self.provider_name == "gemini" and settings.GEMINI_API_KEY:
-                return await self._call_gemini(augmented_prompt, sys_instruction, temperature, max_tokens)
+                try:
+                    return await self._call_gemini(augmented_prompt, sys_instruction, temperature, max_tokens)
+                except Exception as gemini_err:
+                    logger.warning(f"Gemini API quota or call failed: {gemini_err}. Attempting Groq fallback if configured.")
+                    groq_key = settings.GROQ_API_KEY or (settings.GROK_API_KEY if settings.GROK_API_KEY and settings.GROK_API_KEY.startswith("gsk_") else None)
+                    if groq_key:
+                        return await self._call_groq(augmented_prompt, sys_instruction, temperature, max_tokens, api_key=groq_key)
+                    raise gemini_err
+
+            # 5. Ollama provider
             elif self.provider_name == "ollama":
                 return await self._call_ollama(augmented_prompt, sys_instruction, temperature, max_tokens)
+
+            # 6. Fallback if none matched
             else:
+                groq_key = settings.GROQ_API_KEY or (settings.GROK_API_KEY if settings.GROK_API_KEY and settings.GROK_API_KEY.startswith("gsk_") else None)
+                if groq_key:
+                    return await self._call_groq(augmented_prompt, sys_instruction, temperature, max_tokens, api_key=groq_key)
                 return await self._call_mock_provider(augmented_prompt, sys_instruction)
+
         except Exception as e:
             logger.warning(f"Provider {self.provider_name} failed: {e}. Falling back to intelligent engine response.")
+            # If Groq is available and was not what failed, try Groq before falling back to mock
+            groq_key = settings.GROQ_API_KEY or (settings.GROK_API_KEY if settings.GROK_API_KEY and settings.GROK_API_KEY.startswith("gsk_") else None)
+            if groq_key and self.provider_name not in ["groq"]:
+                try:
+                    return await self._call_groq(augmented_prompt, sys_instruction, temperature, max_tokens, api_key=groq_key)
+                except Exception:
+                    pass
             if self.provider_name in ["grok", "xai"]:
                 return await self._call_mock_grok(augmented_prompt, sys_instruction)
             return await self._call_mock_provider(augmented_prompt, sys_instruction)
+
+    async def _call_groq(
+        self,
+        prompt: str,
+        system_prompt: str,
+        temperature: float,
+        max_tokens: int,
+        api_key: Optional[str] = None
+    ) -> str:
+        key = api_key or settings.GROQ_API_KEY or settings.GROK_API_KEY
+        if not key or key.startswith("your_"):
+            return await self._call_mock_grok(prompt, system_prompt)
+
+        url = f"{settings.GROQ_BASE_URL.rstrip('/')}/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {key}",
+            "Content-Type": "application/json"
+        }
+
+        # Available high-performance models on user's Groq key
+        models_to_try = ["openai/gpt-oss-120b", "openai/gpt-oss-20b", "qwen/qwen3.8-27b"]
+        last_error = None
+
+        for model_id in models_to_try:
+            payload = {
+                "model": model_id,
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": prompt}
+                ],
+                "temperature": temperature,
+                "max_tokens": max_tokens
+            }
+            try:
+                async with httpx.AsyncClient(timeout=30.0) as client:
+                    resp = await client.post(url, json=payload, headers=headers)
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        return data["choices"][0]["message"]["content"]
+                    else:
+                        logger.warning(f"Groq model {model_id} returned status {resp.status_code}: {resp.text}")
+                        last_error = Exception(f"Groq API returned {resp.status_code}: {resp.text}")
+            except Exception as ex:
+                logger.warning(f"Groq call with model {model_id} error: {ex}")
+                last_error = ex
+
+        raise last_error or RuntimeError("Groq API call failed across all candidate models.")
 
     async def _call_grok(self, prompt: str, system_prompt: str, temperature: float, max_tokens: int) -> str:
         api_key = settings.GROK_API_KEY or settings.XAI_API_KEY
@@ -83,23 +165,22 @@ class LLMProvider:
         prompt_lower = prompt.lower()
         if "decision" in prompt_lower or "offer" in prompt_lower or "compare" in prompt_lower or "option" in prompt_lower:
             return (
-                "### [xAI Grok-2 // Decision Telemetry]\n\n"
-                "Let's cut through the noise and run the actual numbers on this decision:\n\n"
-                "1. **Option A ($140k, 3 Days On-Site)**:\n"
-                "   • **Raw Math**: $20k pre-tax premium (~$13k net depending on your tax bracket).\n"
-                "   • **The Real Cost**: 3 days commute = ~150 round trips/year. At 1.5 hrs/day, you're trading ~225 hours of your life. That's equivalent to an effective hourly wage discount on your free time.\n"
-                "   • **Upside**: Real physical signal transmission with leadership; faster political capital accumulation.\n\n"
+                "### [Groq LPU // Decision Analysis]\n\n"
+                "Objective Multi-Criteria Analysis:\n\n"
+                "1. **Option A ($140k, Hybrid / 3 Days On-Site)**:\n"
+                "- **Financial Advantage**: +$20,000 gross annual income (~$1,100–$1,300/mo net).\n"
+                "- **Commute Cost**: ~150 round trips/yr. At 1.5 hrs/day, 225 hours consumed in transit.\n"
+                "- **Strategic Benefit**: Increased executive proximity and synchronous collaboration.\n\n"
                 "2. **Option B ($120k, 100% Remote)**:\n"
-                "   • **Raw Math**: $120k baseline, zero transit expenses, zero wardrobe/commute overhead (~$4k–$6k saved annually).\n"
-                "   • **Autonomy Dividend**: 225 reclaimed hours. You can reinvest those in health, side projects, or deep work.\n"
-                "   • **Downside**: Requires aggressive async documentation discipline to stay visible.\n\n"
-                "**Grok Verdict (Confidence: 91%)**:\n"
-                "Unless the in-office role gives you immediate equity upside or direct mentorship from an industry heavyweight, **Option B is the higher expected-value move**. Time leverage beats marginal tax-bracket income every time."
+                "- **Financial Baseline**: $120k with near-zero commuting and wardrobe expenses.\n"
+                "- **Time Dividend**: 225 reclaimed hours/year for sleep, exercise, or continuous learning.\n"
+                "- **Autonomy**: Full location independence.\n\n"
+                "**Recommendation**: Option B yields higher quality-of-life per unit of compensation, unless on-site mentorship at Option A significantly accelerates career velocity."
             )
         return (
-            f"### [xAI Grok-2 // Active Telemetry]\n\n"
+            f"### [Groq LPU Telemetry]\n\n"
             f"Query acknowledged: \"{prompt[:120]}\"\n\n"
-            "Analyzing through real-time first-principles logic. AegisAI long-term memory banks and multi-criteria decision nodes are synchronized."
+            "Analyzing through multi-criteria decision nodes and persistent memory context."
         )
 
     async def _call_openai(self, prompt: str, system_prompt: str, temperature: float, max_tokens: int) -> str:
@@ -144,7 +225,6 @@ class LLMProvider:
             return data["content"][0]["text"]
 
     async def _call_gemini(self, prompt: str, system_prompt: str, temperature: float, max_tokens: int) -> str:
-        # Try gemini-1.5-flash and fallback to gemini-2.0-flash
         models = ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-1.5-pro"]
         last_exception = None
 

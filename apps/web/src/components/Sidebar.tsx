@@ -133,12 +133,12 @@ export function Sidebar({
                 <Zap className="w-3.5 h-3.5 text-amber shrink-0" />
               )}
               <span className="font-mono text-xs font-bold text-slate-200 truncate">
-                {selectedModel === "gemini" ? "Google Gemini 2.0" : "xAI Grok-2 Vision"}
+                {selectedModel === "gemini" ? "Google Gemini 2.0" : "Groq LPU (GPT-OSS-120B)"}
               </span>
             </div>
 
             <button
-              onClick={() => onSelectModel(selectedModel === "gemini" ? "grok" : "gemini")}
+              onClick={() => onSelectModel(selectedModel === "gemini" ? "groq" : "gemini")}
               className="font-mono text-[9px] text-steel-300 hover:text-cyan underline underline-offset-2 shrink-0"
               title="Click to toggle model"
             >
@@ -149,7 +149,7 @@ export function Sidebar({
           <p className="text-[10px] font-mono text-steel-500 leading-tight">
             {selectedModel === "gemini"
               ? "1M Token Context // DeepMind RAG"
-              : "Real-time Telemetry // Deep Mathematical Logic"}
+              : "Sub-Second LPU Inference // 120B Architecture"}
           </p>
         </div>
       </div>
